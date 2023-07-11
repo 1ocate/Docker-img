@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  nginx-proxy:
+    container_name: nginx-proxy
+    image: jwilder/nginx-proxy:latest
+    ports:
+      - 80:80
+      - 443:443
+    restart: always
+    volumes:
+      - ./nginx-proxy/nginx:/etc/nginx/
+      - ./nginx-proxy/log:/var/log/nginx
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      - com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy
+    networks:
+      - nginx-proxy
+
+  mysql:
+    container_name: mysql
+    image: mysql:5.7
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/database:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - nginx-proxy
+
+  zabbix-server:
+    container_name: zabbix-server
+    image: zabbix/zabbix-server-mysql:ubuntu-5.0-latest
+    environment:
+      - DB_SERVER_HOST=mysql
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    networks:
+      - nginx-proxy
+
+  zabbix-web:
+    container_name: zabbix-web
+    image: zabbix/zabbix-web-nginx-mysql:alpine-5.0-latest
+    environment:
+      - DB_SERVER_HOST=mysql
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - ZBX_SERVER_HOST=zabbix-server 
+      - PHP_TZ=Asia/Seoul
+      - VIRTUAL_HOST=zabbix.loc
+      - VIRTUAL_PORT=8080
+    networks:
+      - nginx-proxy
+
+  zabbix-agent:
+    container_name: zabbix-agent
+    image: zabbix/zabbix-agent:alpine-5.0-latest
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server 
+      - ZBX_HOSTNAME=Zabbix server
+    networks:
+      - nginx-proxy
+    # ports:
+    #   - 80:80
+
+networks:
+  nginx-proxy:
+    name: nginx-proxy
+
