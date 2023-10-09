@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # nginx-proxy:
+  #   container_name: nginx-proxy
+  #   image: jwilder/nginx-proxy:latest
+  #   ports:
+  #     - 80:80
+  #     - 443:443
+  #   restart: always
+  #   volumes:
+  #     - ./nginx-proxy/nginx:/etc/nginx/
+  #     - ./nginx-proxy/log:/var/log/nginx
+  #     - /var/run/docker.sock:/tmp/docker.sock:ro
+  #     - /etc/localtime:/etc/localtime:ro
+  #   labels:
+  #     - com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy
+  #   networks:
+  #     - nginx-proxy
+
+  mysql-dev-zabbix:
+    container_name: mysql-dev-zabbix
+    image: mysql:5.7
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    # ports:
+    #   - "3306:3306"
+    volumes:
+      - ./mysql/database:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - nginx-proxy
+
+  zabbix-dev-server:
+    container_name: zabbix-dev-server
+    image: zabbix/zabbix-server-mysql:ubuntu-5.0-latest
+    restart: always
+    environment:
+      - DB_SERVER_HOST=mysql-dev-zabbix
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    networks:
+      - nginx-proxy
+
+  zabbix-dev-web:
+    container_name: zabbix-dev-web
+    image: zabbix/zabbix-web-nginx-mysql:alpine-5.0-latest
+    restart: always
+    environment:
+      - DB_SERVER_HOST=mysql-dev-zabbix
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - ZBX_SERVER_HOST=zabbix-dev-server 
+      - PHP_TZ=Asia/Seoul
+      - VIRTUAL_HOST=zabbix-dev.loc
+      - VIRTUAL_PORT=8080
+      - ZBX_MAXEXECUTIONTIME=300
+      - ZBX_MEMORYLIMIT=1024M
+      - ZBX_POSTMAXSIZE=20M
+      - ZBX_UPLOADMAXFILESIZE=20M
+      - ZBX_MAXINPUTTIME=300
+    volumes:
+      - ./zabbix-web/nginx.conf:/etc/zabbix/nginx.conf
+      - ./zabbix-web/CFrontendSetup.php:/usr/share/zabbix/include/classes/setup/CFrontendSetup.php
+    networks:
+      - nginx-proxy
+
+  zabbix-dev-agent:
+    container_name: zabbix-dev-agent
+    image: zabbix/zabbix-agent:alpine-5.0-latest
+    restart: always
+    environment:
+      - ZBX_SERVER_HOST=zabbix-dev-server 
+      - ZBX_HOSTNAME=zabbix-dev-server
+    networks:
+      - nginx-proxy
+    # ports:
+    #   - 80:80
+
+networks:
+  nginx-proxy:
+    name: nginx-proxy
+
